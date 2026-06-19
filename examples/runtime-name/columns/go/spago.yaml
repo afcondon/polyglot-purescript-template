@@ -1,0 +1,12 @@
+workspace:
+  packageSet:
+    registry: 57.1.0
+  backend:
+    cmd: "true"
+  extraPackages:
+    runtime-name-core:
+      path: ../../core
+package:
+  name: runtime-name-column-go
+  dependencies:
+    - runtime-name-core

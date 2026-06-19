@@ -1,0 +1,10 @@
+workspace:
+  packageSet:
+    registry: 57.1.0
+  extraPackages:
+    runtime-name-core:
+      path: ../../core
+package:
+  name: runtime-name-column-node
+  dependencies:
+    - runtime-name-core

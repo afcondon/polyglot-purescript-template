@@ -1,0 +1,14 @@
+# pappardelle B-layout — one source (core/), one recipe per runtime (columns/).
+# Adding a runtime = adding a columns/<rt>/ target here. Append-only (Rule 2).
+PUREJL := /Users/afc/work/afc-work/purescript-backends/purescript-julia/.stack-work/install/aarch64-osx/54adb6514a6cae3ce612d3120f8901fb6f9080de7701bf0a5977bb63d1bf3e24/9.2.5/bin/purejl
+PSGO   := /Users/afc/work/afc-work/purescript-backends/purescript-go/.stack-work/install/aarch64-osx/54adb6514a6cae3ce612d3120f8901fb6f9080de7701bf0a5977bb63d1bf3e24/9.2.5/bin/psgo
+
+run-jurist:
+	cd columns/jurist && spago build && $(PUREJL) output output-jl && julia output-jl/main.jl
+
+run-go:
+	cd columns/go && spago build && $(PSGO) output output-go --entry Main && (cd output-go && go run *.go)
+
+build-go:
+	cd columns/go && spago build && $(PSGO) output output-go --entry Main && (cd output-go && go build -o ../hello-go *.go)
+	@echo "native binary: columns/go/hello-go"

@@ -1,0 +1,6 @@
+package:
+  name: hello-core
+  dependencies:
+    - prelude
+    - effect
+    - console

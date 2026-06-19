@@ -1,0 +1,9 @@
+output/
+output-jl/
+output-go/
+output-py/
+.spago/
+spago.lock
+# built native binaries
+**/hello-go
+**/runtime-name-go

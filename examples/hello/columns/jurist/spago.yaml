@@ -1,0 +1,12 @@
+workspace:
+  packageSet:
+    registry: 57.1.0
+  backend:
+    cmd: "true"
+  extraPackages:
+    hello-core:
+      path: ../../core
+package:
+  name: hello-column-jurist
+  dependencies:
+    - hello-core

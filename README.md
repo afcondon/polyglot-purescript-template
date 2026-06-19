@@ -45,6 +45,23 @@ all). Both were harmonized to co-location — see
 `docs/specs/co-located-user-foreigns.md`. (purejl keeps `ffi-jl/` as a
 fallback.) Requires the harmonized backends; landed locally, pending upstream.
 
+## The `poly` wrapper (`bin/poly`)
+
+A thin spago wrapper that "just works" on this layout — the tool ships *with*
+the template. The column's `spago.yaml` carries the build config; `poly` only
+adds the per-runtime transpile + run glue and discovers which columns a project
+has. Run it from anywhere inside a project (it walks up to the `columns/` dir).
+
+```
+poly list             # which runtimes this project has + are their backends found
+poly run <rt>         # build + run one runtime
+poly run all          # run every column; a smoke harness
+poly build <rt>       # produce the deliverable (a native binary for go)
+```
+
+Backend binaries resolve via `$PUREJL`/`$PSGO`, then `PATH`, then the sibling
+`purescript-backends` repos. Adding a runtime = adding one case arm.
+
 ## Examples
 - `examples/hello` — pure program, no FFI. Runs on julia + go from one source.
 - `examples/runtime-name` — the same `Main` printing a per-runtime string via a

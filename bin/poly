@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# poly — a thin spago wrapper for the polyglot-template B layout.
+#
+# The structure carries most of it (pace Jameson): each columns/<rt>/spago.yaml
+# already pins the package set + backend, so `spago build` in a column does the
+# right first step. poly only adds the per-runtime transpile + run glue that
+# spago can't express, and discovers which columns a project has.
+#
+#   poly list             which runtimes this project has, and are their backends found
+#   poly run <rt>         build + run one runtime          (rt = a columns/<rt> dir)
+#   poly run all          run every column; summarise pass/fail
+#   poly build <rt>       produce the deliverable artifact (native binary for go)
+#
+# Backend binaries are resolved per runtime: $PUREJL/$PSGO env override first,
+# then PATH, then the sibling purescript-backends repos. Run from anywhere in a
+# project; poly walks up to the dir that contains columns/.
+set -uo pipefail
+
+# --- find project root (nearest ancestor with a columns/ dir) ---
+root() { local d="$PWD"; while [ "$d" != / ]; do [ -d "$d/columns" ] && { echo "$d"; return; }; d=$(dirname "$d"); done; return 1; }
+ROOT=$(root) || { echo "poly: not inside a project (no columns/ dir found above $PWD)" >&2; exit 1; }
+
+# locate the sibling purescript-backends repo (walk up from the project)
+find_backends() { local d="$ROOT"; while [ "$d" != / ]; do [ -d "$d/purescript-backends" ] && { echo "$d/purescript-backends"; return; }; d=$(dirname "$d"); done; }
+BACKENDS=${POLY_BACKENDS:-$(find_backends)}
+
+# --- resolve a backend binary: env var > PATH > sibling .stack-work ---
+resolve() { # $1=binname $2=backend-repo-dir
+  local bin=$1 repo=$2 ev; ev=$(echo "$bin" | tr '[:lower:]' '[:upper:]')
+  [ -n "${!ev:-}" ] && { echo "${!ev}"; return; }
+  command -v "$bin" >/dev/null 2>&1 && { command -v "$bin"; return; }
+  [ -n "$BACKENDS" ] && find "$BACKENDS/$repo" -path '*/bin/'"$bin" -type f 2>/dev/null | head -1 | grep . || return 1
+}
+
+# --- the per-runtime adapter registry. Add a runtime = add a case arm. ---
+# do_column <rt> <build|run> : in columns/<rt>, spago build then transpile (+run)
+do_column() {
+  local rt=$1 mode=$2 bin col
+  col="$ROOT/columns/$rt"
+  [ -d "$col" ] || { echo "poly: no column 'columns/$rt'" >&2; return 2; }
+  ( cd "$col" || exit 1
+    spago build >/tmp/poly-spago.$$ 2>&1 || { echo "  spago build FAILED:"; tail -5 /tmp/poly-spago.$$; rm -f /tmp/poly-spago.$$; exit 1; }
+    rm -f /tmp/poly-spago.$$
+    case "$rt" in
+      node)
+        [ "$mode" = build ] && { echo "  built: output/ (run with node)"; exit 0; }
+        node --input-type=module -e 'import("./output/Main/index.js").then(m=>m.main())' ;;
+      jurist|julia)
+        bin=$(resolve purejl purescript-julia) || { echo "  purejl not found (set \$PUREJL)"; exit 3; }
+        "$bin" output output-jl >/dev/null || exit 1
+        [ "$mode" = build ] && { echo "  built: output-jl/ (run with julia output-jl/main.jl)"; exit 0; }
+        julia output-jl/main.jl ;;
+      go|gnomon)
+        bin=$(resolve psgo purescript-go) || { echo "  psgo not found (set \$PSGO)"; exit 3; }
+        "$bin" output output-go --entry Main >/dev/null || exit 1
+        if [ "$mode" = build ]; then ( cd output-go && go build -o "../$rt-bin" ./*.go ) && echo "  binary: columns/$rt/$rt-bin"
+        else ( cd output-go && go run ./*.go ); fi ;;
+      *) echo "poly: no adapter for runtime '$rt' (add a case arm in $0)" >&2; exit 4 ;;
+    esac )
+}
+
+columns() { for d in "$ROOT"/columns/*/; do [ -d "$d" ] && basename "$d"; done; }
+
+cmd=${1:-list}; arg=${2:-}
+case "$cmd" in
+  list)
+    echo "project: $ROOT"
+    printf "%-10s %-8s %s\n" RUNTIME BACKEND STATUS
+    for rt in $(columns); do
+      case "$rt" in
+        node)         b=purs;   s="ready (spago)";;
+        jurist|julia) b=purejl; resolve purejl purescript-julia >/dev/null 2>&1 && s=ready || s="purejl not found";;
+        go|gnomon)    b=psgo;   resolve psgo  purescript-go    >/dev/null 2>&1 && s=ready || s="psgo not found";;
+        *)            b="?";    s="no adapter";;
+      esac
+      printf "%-10s %-8s %s\n" "$rt" "$b" "$s"
+    done ;;
+  run)
+    if [ "$arg" = all ] || [ -z "$arg" ]; then
+      rc=0
+      for rt in $(columns); do echo "== $rt =="; do_column "$rt" run || rc=1; done
+      exit $rc
+    else do_column "$arg" run; fi ;;
+  build)
+    [ -n "$arg" ] || { echo "usage: poly build <rt>" >&2; exit 1; }
+    do_column "$arg" build ;;
+  *) echo "usage: poly {list | run <rt>|all | build <rt>}" >&2; exit 1 ;;
+esac

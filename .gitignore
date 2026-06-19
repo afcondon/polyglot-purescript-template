@@ -7,3 +7,4 @@ spago.lock
 # built native binaries
 **/hello-go
 **/runtime-name-go
+pins/

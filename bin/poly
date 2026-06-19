@@ -61,6 +61,53 @@ do_column() {
 
 columns() { for d in "$ROOT"/columns/*/; do [ -d "$d" ] && basename "$d"; done; }
 
+# --- local realizer (zero Nix): build + content-hash -> a pin manifest. ---
+# The pin's shape (source + pin) matches Bosun's x-bosun.artifact; the hermetic
+# Nix realizer slots in behind the SAME seam later (inputs become store paths).
+hash_artifact() { # $1=path -> sha256 of a file, or content-tree hash of a dir
+  if [ -f "$1" ]; then shasum -a 256 "$1" | awk '{print $1}'
+  elif [ -d "$1" ]; then find "$1" -type f -exec shasum -a 256 {} + | awk '{print $1}' | sort | shasum -a 256 | awk '{print $1}'
+  else echo MISSING; fi
+}
+artifact_of() { case "$1" in   # kind|relpath of the deliverable
+  go|gnomon)    echo "file|columns/$1/$1-bin";;
+  jurist|julia) echo "tree|columns/$1/output-jl";;
+  node)         echo "tree|columns/$1/output";;
+  *)            echo "none|";; esac; }
+pin_column() {
+  local rt=$1 spec kind rel abs sha bytes backend bin rttool pset
+  do_column "$rt" build >/dev/null 2>&1 || { echo "  build failed for $rt" >&2; return 1; }
+  spec=$(artifact_of "$rt"); kind=${spec%%|*}; rel=${spec#*|}
+  [ -n "$rel" ] || { echo "  no artifact mapping for $rt" >&2; return 1; }
+  abs="$ROOT/$rel"; sha=$(hash_artifact "$abs")
+  bytes=$(find "$abs" -type f -print0 2>/dev/null | xargs -0 wc -c 2>/dev/null | tail -1 | awk '{print $1}')
+  case "$rt" in
+    go|gnomon)    backend=psgo;   bin=$(resolve psgo purescript-go 2>/dev/null);    rttool=$(go version 2>/dev/null);;
+    jurist|julia) backend=purejl; bin=$(resolve purejl purescript-julia 2>/dev/null); rttool=$(julia --version 2>/dev/null);;
+    node)         backend=purs;   bin=$(command -v node 2>/dev/null);              rttool=$(node --version 2>/dev/null);;
+  esac
+  pset=$(grep -oE 'registry: *[0-9.]+' "$ROOT/columns/$rt/spago.yaml" 2>/dev/null | head -1 | tr -d ' ')
+  mkdir -p "$ROOT/pins"
+  cat > "$ROOT/pins/$rt.json" <<EOF
+{
+  "runtime": "$rt",
+  "source":  { "project": "$(basename "$ROOT")", "column": "$rt", "entry": "Main" },
+  "inputs":  {
+    "purs": "$(purs --version 2>/dev/null)",
+    "spago": "$(spago --version 2>/dev/null)",
+    "packageSet": "${pset:-unknown}",
+    "backend": "$backend",
+    "backendBin": "${bin:-n/a}",
+    "runtimeTool": "${rttool:-n/a}"
+  },
+  "artifact": { "kind": "$kind", "path": "$rel", "sha256": "$sha", "bytes": ${bytes:-0} },
+  "builtAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "realizer": "local (zero-Nix): provenance + content hash. A hermetic Nix realizer slots in behind the same pin shape; inputs become store paths."
+}
+EOF
+  echo "  pinned $rt -> pins/$rt.json  (sha256 ${sha:0:12}…, ${bytes:-?} bytes)"
+}
+
 cmd=${1:-list}; arg=${2:-}
 case "$cmd" in
   list)
@@ -84,5 +131,9 @@ case "$cmd" in
   build)
     [ -n "$arg" ] || { echo "usage: poly build <rt>" >&2; exit 1; }
     do_column "$arg" build ;;
-  *) echo "usage: poly {list | run <rt>|all | build <rt>}" >&2; exit 1 ;;
+  pin)
+    if [ "$arg" = all ] || [ -z "$arg" ]; then
+      for rt in $(columns); do echo "== $rt =="; pin_column "$rt"; done
+    else pin_column "$arg"; fi ;;
+  *) echo "usage: poly {list | run <rt>|all | build <rt> | pin <rt>|all}" >&2; exit 1 ;;
 esac

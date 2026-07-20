@@ -1,0 +1,5 @@
+# The shared core is a Prim-only package: it has NO dependencies (not even
+# prelude), which is exactly why it compiles under every backend at once.
+package:
+  name: interpret-core
+  dependencies: []

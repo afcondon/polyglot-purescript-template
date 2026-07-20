@@ -1,0 +1,17 @@
+# The `nix` interpreter column. `backend: cmd: "true"` makes spago compile to
+# CoreFn and do NO JS codegen — exactly the recipe the `go`/`jurist` runtime
+# columns use. poly then runs `pursnix` (Nyx) on output/ as the post-CoreFn
+# step, the structural twin of running psgo/purejl. Depends only on `core`;
+# no prelude — this interpreter is Prim-only + the co-located ToNix.nix FFI.
+workspace:
+  packageSet:
+    registry: 57.1.0
+  backend:
+    cmd: "true"
+  extraPackages:
+    interpret-core:
+      path: ../../core
+package:
+  name: interpret-nix
+  dependencies:
+    - interpret-core

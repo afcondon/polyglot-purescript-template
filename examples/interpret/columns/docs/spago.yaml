@@ -1,0 +1,19 @@
+# The `docs` interpreter column: the JS backend lowers the shared value to
+# Markdown. A normal spago package that depends on `core` plus the prelude
+# surface the interpreter uses. `poly run docs` -> spago run -> prints Markdown.
+workspace:
+  packageSet:
+    registry: 57.1.0
+  extraPackages:
+    interpret-core:
+      path: ../../core
+package:
+  name: interpret-docs
+  dependencies:
+    - interpret-core
+    - prelude
+    - strings
+    - effect
+    - console
+  run:
+    main: Main

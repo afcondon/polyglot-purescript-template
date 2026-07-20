@@ -8,3 +8,4 @@ spago.lock
 **/hello-go
 **/runtime-name-go
 pins/
+.direnv/

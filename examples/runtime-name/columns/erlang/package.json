@@ -1,0 +1,9 @@
+{
+  "name": "runtime-name-column-erlang",
+  "private": true,
+  "type": "module",
+  "//": "purs-backend-erl is the spago backend (see spago.yaml). It comes from npm, not the devShell — the one runtime-axis column that needs a node_modules to build.",
+  "dependencies": {
+    "purs-backend-erl": "^0.0.3"
+  }
+}

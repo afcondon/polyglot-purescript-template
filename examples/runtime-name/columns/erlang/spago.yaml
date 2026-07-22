@@ -1,0 +1,21 @@
+# The Erlang (purerl) lowering — an append-only column, added without touching
+# core/ or any other column. Two purerl-specific facts distinguish it from the
+# node column:
+#   1. packageSet is the purerl set (its own erl-* libraries), not the JS registry.
+#   2. backend is a REAL post-CoreFn generator (purs-backend-erl → .erl), provided
+#      by npm (see package.json) — the go/jurist columns use `cmd: true` because
+#      their tool runs on CoreFn directly; purerl runs during `spago build`.
+# The FFI foreign (core/src/Runtime.erl) needs no mention here: it co-locates with
+# Runtime.purs and purs-backend-erl picks it up. That co-location is the seam.
+workspace:
+  packageSet:
+    url: https://raw.githubusercontent.com/purerl/package-sets/erl-0.15.3-20220629/packages.json
+  extraPackages:
+    runtime-name-core:
+      path: ../../core
+  backend:
+    cmd: "node_modules/.bin/purs-backend-erl"
+package:
+  name: runtime-name-column-erlang
+  dependencies:
+    - runtime-name-core

@@ -119,7 +119,8 @@ says so.
 **What it is.** Tidal's patterns, mini-notation and line language: 23 modules,
 about 5,000 lines, consumed by purerl-tidal on the BEAM and by Triggerfish in
 the browser, and held to Haskell Tidal by a GHCi oracle. Moved into this
-layout as `purerl-tidal/engine/` (`core/`, `columns/node`, `columns/erlang`)
+layout as `purerl-tidal/engine/` (`core/`, `columns/node`, `columns/erlang`;
+since the same day its own repo, `music/littorina`)
 so that Triggerfish could stop vendoring a copy that had drifted from both.
 
 **What fit.** The layout, and the claim it makes possible: the engine's
@@ -155,7 +156,7 @@ this, so the examples cannot show it.
 `js-bigints` (the registry's `JS.BigInt`) is JS-only and needs
 `Data.Reflectable` and `Parity`, which the purerl set lacks. Rather than a
 second BigInt for the BEAM, it was ported: upstream's `.purs` less two
-functions, with a `BigInt.erl` beside it (`purerl-tidal/vendor/js-bigints`),
+functions, with a `BigInt.erl` beside it (`littorina/vendor/js-bigints`),
 which is how the purerl organisation's own `-erl1` packages are made. Core
 names `js-bigints`; the node column resolves it from the registry and the
 erlang column to the port. The column's `extraPackages` is where a

@@ -111,3 +111,98 @@ program at import time. Filed as
 `purescript-python/docs/RECURSIVE-LET-BINDING-ISSUE.md`. Mentioned only because
 it shaped the code — the module uses association arrays and linear scans, and
 says so.
+
+---
+
+## purerl-tidal's engine (node + erlang) — 2026-10-01
+
+**What it is.** Tidal's patterns, mini-notation and line language: 23 modules,
+about 5,000 lines, consumed by purerl-tidal on the BEAM and by Triggerfish in
+the browser, and held to Haskell Tidal by a GHCi oracle. Moved into this
+layout as `purerl-tidal/engine/` (`core/`, `columns/node`, `columns/erlang`)
+so that Triggerfish could stop vendoring a copy that had drifted from both.
+
+**What fit.** The layout, and the claim it makes possible: the engine's
+conformance suite runs in both columns, and GHC, the BEAM and JS give the same
+answers on every case (111 against GHC, 97 against Tidal). JS passed the first
+time it ran, untouched. The seam rule held too: one module has foreigns
+(`Haskell.Double`), and everything above it is PureScript.
+
+### Finding 1 — the first core with real dependencies, and package-set skew
+
+The examples import the Prelude. This core imports parsers, maps, rationals,
+Unicode classes and maths, and the purerl package set (erl-0.15.3, the newest
+there is, from 2022) and the registry disagree on three of them:
+
+| Library | purerl set | registry |
+|---|---|---|
+| `parsing` | 6: `Text.Parsing.Parser` | 11: `Parsing`, another API |
+| maths | `Math` | `Data.Number` |
+| `Data.Rational` | `type Rational = Ratio Int` | `newtype Rational (Ratio BigInt)` |
+
+The same source cannot import either side of any of them. **The rule that
+worked: core depends on a package only if the API it uses is the same in
+every column's set.** Everything else, core owns: its own Parsec, its own
+`Rational`, its own `Double` functions, each at most a few hundred lines.
+
+**What the template needs:** say that core's dependencies are the
+intersection of the columns' package sets, and that a column's set is part of
+its recipe, not a detail. A core that only imports the Prelude never meets
+this, so the examples cannot show it.
+
+### Finding 2 — a registry package can cross by being ported, not stubbed
+
+`js-bigints` (the registry's `JS.BigInt`) is JS-only and needs
+`Data.Reflectable` and `Parity`, which the purerl set lacks. Rather than a
+second BigInt for the BEAM, it was ported: upstream's `.purs` less two
+functions, with a `BigInt.erl` beside it (`purerl-tidal/vendor/js-bigints`),
+which is how the purerl organisation's own `-erl1` packages are made. Core
+names `js-bigints`; the node column resolves it from the registry and the
+erlang column to the port. The column's `extraPackages` is where a
+per-runtime package lives — another case of Finding 2 in grid-explorer's
+report, that columns are not quite recipe-only.
+
+### Finding 3 — divergence from the standard libraries, flagged by name
+
+The engine must be *bug-compatible* with a Haskell library, which sometimes
+means meaning something other than PureScript's standard libraries: Haskell's
+`Int` wraps at 64 bits (Tidal's randomness depends on it), `Integer` is
+unbounded, `round` is banker's, Parsec's `string` consumes what it matched.
+The rule adopted: **such a divergence is always visible in the code, as an
+import of a module named for the reference** (`Haskell.Int`,
+`Haskell.Parsec`; in time perhaps `Julia.*` or `Go.*`), whose specification
+is "what the reference does", held to the reference by an oracle (here, cases
+GHC evaluates into a golden file). It earns a module only if the reference's
+own outputs show the difference; error wording and speed are documented
+differences instead. The oracle earned its keep at once: it found two bugs in
+the Parsec port before the PureScript side had run.
+
+**What the template needs:** probably nothing yet. Noted because it is the
+first reference-semantics library in the ecosystem and the template is where
+the next one will look.
+
+### Finding 4 — the conformance suite belongs in core, the entry point in the column
+
+A column cannot run its dependency's `test/`, so the suite moved into core as
+a pure module (`Tidal.Conformance`, with its goldens), as `Reef.Conformance`
+already does in reef, plus a small `Main` that prints and throws. Each column
+carries a one-line `Main` that calls it, because a module named `Main` in
+core would collide with its consumers' own. Supports grid-explorer's
+Finding 2: a column may carry an entry point, and here it carries nothing
+else.
+
+### Finding 5 — the erlang column at scale
+
+Two things the `runtime-name` example never exercised, now in `poly`'s new
+erlang arm (9f77dd5) and in `ERLANG-COLUMN.md`:
+
+- **erlc one file at a time.** A batched `erlc ... {} +` stops at the first
+  failure and leaves every later module unbuilt. The symptom is `undef` at
+  run time, far from the cause: here `data_maybe@ps:Just`.
+- **`-disable-feature maybe_expr`.** OTP 27 made `maybe` a keyword, and
+  purerl's `Data.Maybe` defines a function of that name, so any program that
+  reaches `Data.Maybe` fails to compile without it.
+
+Also confirmed: spago ignores a nested workspace, so columns can live inside a
+repo that is already a spago workspace (purerl-tidal's root build is
+unchanged by `engine/columns/*`).

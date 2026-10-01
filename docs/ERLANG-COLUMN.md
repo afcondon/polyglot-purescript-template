@@ -62,6 +62,8 @@ its erlang lowering must be.* Each lesson below is a failure we actually hit.
 | `spago build` → *Failed to find git* | quartermaster `#purerl` shell | Recipe §6, **and a quartermaster fix** (`671f256`): the `purescript` shell already carried `pkgs.git` "not assumed on fleet hosts" — the lesson existed but never propagated. A devShell has a contract only a real build exercises. |
 | `erlc output-erl/*.erl` → *no such file* | this column's first build | Recipe §4: the output tree is nested; `find`-drive erlc. Harvested *here*, live. |
 | CopyClosure of `ebin/` to the mini just worked | Brunel | Recipe §7: BEAM is portable — a distribution property that feeds delivery-channel choice (ADR 0007). Brunel taught this back. |
+| A batched `erlc ... {} +` built 251 of 273 modules, silently; the run died with `undef` on `data_maybe@ps:Just` | purerl-tidal's engine column | erlc one file at a time, and stop the column on any erlc error (poly's erlang arm). |
+| `data_maybe@ps.erl: syntax error before: 'maybe'` | the same, on OTP 27 | `erlc -disable-feature maybe_expr`: `maybe` became a keyword, and purerl's `Data.Maybe` defines one. |
 
 ## The meta-lesson
 

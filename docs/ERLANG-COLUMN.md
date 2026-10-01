@@ -38,7 +38,10 @@ its erlang lowering must be.* Each lesson below is a failure we actually hit.
    console) resolve from it — `core` stays backend-neutral; the column picks the set.
 
 4. **`purs-backend-erl` emits a NESTED tree** — `output-erl/<Module>/<module>@*.erl`
-   — so `erlc` is driven by `find output-erl -name '*.erl'`, never a flat glob.
+   — so `erlc` is driven by `find output-erl -name '*.erl'`, never a flat glob,
+   **one file per erlc** (a batch stops at its first failure), with
+   `-disable-feature maybe_expr` on OTP 27+ (`maybe` is a keyword there, and
+   purerl's `Data.Maybe` defines one).
 
 5. **rebar3 is DEPS-ONLY.** The app (the `@ps`/`@foreign` modules) is compiled by
    `erlc`, never rebar3 — because the `@foreign` files' module names deliberately do

@@ -56,6 +56,25 @@ do_column() {
         # is the same mechanism — a Main that prints the emitted artifact.
         [ "$mode" = build ] && { echo "  built: output/ (run with node)"; exit 0; }
         node --input-type=module -e 'import("./output/Main/index.js").then(m=>m.main())' ;;
+      erlang|erl)
+        # purerl. purs-backend-erl ran during `spago build` (the column's
+        # backend.cmd), into a NESTED output-erl/<Module>/ tree. Two lessons from
+        # purerl-tidal's engine (docs/FIELD-REPORTS.md): erlc ONE FILE AT A TIME,
+        # since a batched erlc stops at the first failure and leaves the rest
+        # unbuilt; and -disable-feature maybe_expr, since OTP 27 made `maybe` a
+        # keyword and purerl's Data.Maybe defines a function of that name. Any
+        # erlc error stops the column: a module that failed to compile is
+        # otherwise `undef` only at run time, far from its cause.
+        mkdir -p ebin
+        local f fail=0
+        while IFS= read -r f; do
+          erlc -disable-feature maybe_expr -o ebin "$f" >/tmp/poly-erlc.$$ 2>&1 \
+            || { echo "  erlc FAILED: $f"; grep -v Warning /tmp/poly-erlc.$$ | head -5; fail=1; }
+        done < <(find output-erl -name '*.erl')
+        rm -f /tmp/poly-erlc.$$
+        [ "$fail" = 0 ] || exit 1
+        [ "$mode" = build ] && { echo "  built: ebin/ (run with erl -pa ebin)"; exit 0; }
+        erl -pa ebin -noshell -eval 'F = main@ps:main(), F()' -s init stop ;;
       jurist|julia)
         bin=$(resolve purejl purescript-julia) || { echo "  purejl not found (set \$PUREJL)"; exit 3; }
         "$bin" output output-jl >/dev/null || exit 1
@@ -94,6 +113,7 @@ artifact_of() { case "$1" in   # kind|relpath of the deliverable
   go|gnomon)    echo "file|columns/$1/$1-bin";;
   jurist|julia) echo "tree|columns/$1/output-jl";;
   node)         echo "tree|columns/$1/output";;
+  erlang|erl)   echo "tree|columns/$1/ebin";;
   *)            echo "none|";; esac; }
 pin_column() {
   local rt=$1 spec kind rel abs sha bytes backend bin rttool pset
@@ -137,6 +157,7 @@ case "$cmd" in
     for rt in $(columns); do
       case "$rt" in
         node|docs)    b=purs;    s="ready (spago)";;
+        erlang|erl)   b=purerl;  command -v erlc >/dev/null 2>&1 && s="ready (erlc)" || s="erlc not found";;
         jurist|julia) b=purejl;  resolve purejl purescript-julia >/dev/null 2>&1 && s=ready || s="purejl not found";;
         go|gnomon)    b=psgo;    resolve psgo  purescript-go    >/dev/null 2>&1 && s=ready || s="psgo not found";;
         nix|nyx)      b=pursnix; resolve pursnix purescript-nix >/dev/null 2>&1 && s=ready || s="pursnix not found";;

@@ -32,6 +32,13 @@ into the column (data axis).
    seam); it may never edit `core/` or another column. Cost ∝ the lowering's own
    *unmet surface*, never the number of existing columns.
 
+And one constraint the examples never meet, because they import only the
+Prelude: **core may depend on a package only where the API it uses is the same
+in every column's package set.** The purerl set and the registry disagree on
+`parsing`, maths and `Data.Rational`, for instance; a core that needs one of
+those owns it instead, or takes it across the seam. See
+[`docs/FIELD-REPORTS.md`](docs/FIELD-REPORTS.md), "purerl-tidal's engine".
+
 ## Layout (B)
 
 **Program axis** — core holds the program; columns are thin recipes; the
@@ -63,14 +70,15 @@ Prim-only. See [`docs/TWO-AXES.md`](docs/TWO-AXES.md).
 ## Per-runtime user-foreign convention (harmonized)
 One rule, the one purs already uses for `.js`: the foreign sits **co-located
 with the `.purs`**, basename + the backend's extension, found via CoreFn
-`modulePath`. So `Runtime.purs`, `Runtime.js`, `Runtime.jl`, `Runtime.go` all
-live together at the seam; columns hold no foreigns.
+`modulePath`. So `Runtime.purs`, `Runtime.js`, `Runtime.jl`, `Runtime.go`,
+`Runtime.erl` all live together at the seam; columns hold no foreigns.
 
 | Runtime | Backend | Co-located foreign |
 |---|---|---|
 | node  | purs (JS) | `Runtime.js` |
 | julia | purejl    | `Runtime.jl` (bare-name defs, `include`d into the module) |
 | go    | psgo      | `Runtime.go` (`package main`, `var Runtime_<name> any = …`) |
+| erlang | purs-backend-erl | `Runtime.erl` (module `runtime@foreign`, not the filename; see [`docs/ERLANG-COLUMN.md`](docs/ERLANG-COLUMN.md)) |
 
 purejl + psgo originally diverged (a `ffi-jl/` glob; psgo had no mechanism at
 all). Both were harmonized to co-location — see
@@ -112,12 +120,31 @@ poly build <col>      # produce the deliverable (native binary for go, .nix for 
 Backend binaries resolve via `$PUREJL`/`$PSGO`/`$PURSNIX`, then `PATH`, then the
 sibling `purescript-backends` repos. Adding a lowering = adding one case arm.
 
+The erlang arm is the one whose backend runs *during* `spago build`
+(`purs-backend-erl`, from npm, named in the column's `backend.cmd`); `poly` then
+compiles `output-erl/` with erlc one file at a time, with
+`-disable-feature maybe_expr` (OTP 27+), and stops on any erlc error.
+`poly build erlang` leaves portable BEAM in `ebin/`.
+
 ## Examples
 - `examples/hello` — *(program axis)* pure program, no FFI. Runs on julia + go
   from one source.
 - `examples/runtime-name` — *(program axis)* the same `Main` printing a
   per-runtime string via a different co-located foreign each. Runs native on
-  node + julia + go.
+  node + julia + go + erlang.
 - `examples/interpret` — *(data axis)* one Prim-only `catalog` value; two
   interpreter columns fold it — `docs` → Markdown (JS), `nix` → an evaluable Nix
   attrset (Nyx). `poly run all` shows both from the one value.
+
+## Field use
+What happened when real projects adopted the layout, and what the template
+learned, is in [`docs/FIELD-REPORTS.md`](docs/FIELD-REPORTS.md):
+
+- **grid-explorer** (python, 2026-07-30) — a Flask API over pandapower; the
+  seam rule exposed analysis that had drifted into the foreign files.
+- **purerl-tidal's engine** (node + erlang, 2026-10-01) — Tidal's patterns
+  and mini-notation, ~5,000 lines, held to Haskell Tidal by a GHC oracle in
+  both columns: GHC, the BEAM and JS agree on every case. The first core with
+  real dependencies, hence the constraint under "Two rules"; also the source
+  of the erlang arm's two lessons and of reference-semantics modules
+  (`Haskell.*`) for code that must mean what another language means.

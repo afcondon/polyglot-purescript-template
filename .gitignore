@@ -2,6 +2,10 @@ output/
 output-jl/
 output-go/
 output-py/
+output-erl/
+ebin/
+node_modules/
+erl_crash.dump
 .spago/
 spago.lock
 # built native binaries
